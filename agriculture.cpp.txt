@@ -1,0 +1,73 @@
+#include "UbidotsMicroESP8266.h"
+#include "DHT.h"            // including the library of DHT11 temperature and humidity sensor
+#define DHTTYPE DHT11       // DHT 11
+#define TOKEN "A1E-xSrSGvkZjqwGUDwgzHyU3KrKzQ0CgJ"       // Put here your Ubidots TOKEN
+
+
+#define temperature  "5cb0b626c03f977eefb65181"           // Put your variable ID here
+#define humidity     "5cb0b642c03f977eaaec04b0"           // Put your variable ID here
+#define moisture     "5cb0b669c03f977eaaec04b7"           // Put your variable ID here
+#define pumpMotor    "5cb0b67dc03f977eefb651a1"           // Put your variable ID here
+
+#define WIFISSID "Coolpad"              // Put here your Wi-Fi SSID
+#define PASSWORD "passwordilla"                     // Put here your Wi-Fi password
+#define dht_dpin 4
+DHT dht(dht_dpin, DHTTYPE);
+
+int relayInput = 16;              // the input to the relay pin
+const int sensor_pin = A0; 
+Ubidots client(TOKEN);
+
+
+void setup(void)
+{ 
+  dht.begin();
+  Serial.begin(9600);
+  pinMode(relayInput, OUTPUT); // initialize pin as OUTPUT
+  client.wifiConnection(WIFISSID, PASSWORD);
+  digitalWrite(relayInput,1);      // turn relay off
+}
+
+
+void loop()
+{
+    int value = client.getValue(pumpMotor);
+    float moisture_percentage = ( 100.00 - ( (analogRead(sensor_pin)/1023.00) * 100.00 ) );
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+   
+    client.add(temperature,t);
+    client.add(humidity,h);
+    client.add(moisture, moisture_percentage);
+    client.sendAll(false);
+    delay(100);
+    
+    //threshold values for temperature, humidity, and soilmoisture
+    if(t>35 || h<35 ||  moisture_percentage<30 || value==1)
+    {
+      digitalWrite(relayInput,0);       // turn relay on
+      if(t>35)
+        sendsms("temperature is increased more than 35");
+      if(h<35)
+        sendsms("humidity is decreased than 35");
+      if(moisture_percentage<30)
+          sendsms("soil moisture is decreased than 30");
+    }
+    else
+      digitalWrite(relayInput,1);      // turn relay off
+    delay(5000);
+}
+
+void sendsms(char text[100])
+{
+  Serial.println("AT\r");
+  delay(1000);
+  Serial.println("AT+CMGF=1\r");
+  delay(1000);
+  Serial.println("AT+CMGS=\"+919972478035\"\r");
+  delay(1000);
+  Serial.println(text);
+  delay(1000);
+  Serial.println((char)26);
+  delay(1000);
+}
